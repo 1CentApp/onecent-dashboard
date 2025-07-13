@@ -5,14 +5,19 @@ import { supabase } from '../../../lib/supabase';
 import toast from 'react-hot-toast';
 
 interface Product {
+  [key: string]: any; // Allow all fields
+}
+
+interface ProductImage {
   id: string;
-  name: string;
-  description: string;
+  product_id: string;
+  image_url: string;
   status: string;
 }
 
 const PendingProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [imagesByProduct, setImagesByProduct] = useState<Record<string, ProductImage[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,14 +27,33 @@ const PendingProducts: React.FC = () => {
 
   const fetchPendingProducts = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    // Fetch all pending products
+    const { data: productsData, error: productsError } = await supabase
       .from('products')
       .select('*')
       .eq('status', 'pending');
-    if (error) {
+    if (productsError) {
       toast.error('Failed to fetch products');
+      setLoading(false);
+      return;
+    }
+    setProducts(productsData || []);
+    // Fetch all images for these products
+    const productIds = (productsData || []).map((p: Product) => p.id);
+    if (productIds.length > 0) {
+      const { data: imagesData } = await supabase
+        .from('product_images')
+        .select('*')
+        .in('product_id', productIds);
+      // Group images by product_id
+      const imagesMap: Record<string, ProductImage[]> = {};
+      (imagesData || []).forEach((img: ProductImage) => {
+        if (!imagesMap[img.product_id]) imagesMap[img.product_id] = [];
+        imagesMap[img.product_id].push(img);
+      });
+      setImagesByProduct(imagesMap);
     } else {
-      setProducts(data || []);
+      setImagesByProduct({});
     }
     setLoading(false);
   };
@@ -57,13 +81,24 @@ const PendingProducts: React.FC = () => {
       ) : (
         <div className="space-y-6">
           {products.map((product) => (
-            <div key={product.id} className="bg-white rounded shadow p-4 flex flex-col md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="font-semibold text-lg">{product.name}</div>
-                <div className="text-gray-600 text-sm mb-2">{product.description}</div>
-                <div className="text-xs text-gray-400">ID: {product.id}</div>
+            <div key={product.id} className="bg-white rounded shadow p-4 flex flex-col space-y-4">
+              {/* Images */}
+              {imagesByProduct[product.id] && imagesByProduct[product.id].length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {imagesByProduct[product.id].map((img) => (
+                    <img key={img.id} src={img.image_url} alt="Product" className="w-24 h-24 object-cover rounded border" />
+                  ))}
+                </div>
+              )}
+              {/* All product fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-2">
+                {Object.entries(product).map(([key, value]) => (
+                  <div key={key} className="text-sm text-gray-700">
+                    <span className="font-semibold capitalize">{key.replace(/_/g, ' ')}:</span> {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </div>
+                ))}
               </div>
-              <div className="flex space-x-2 mt-4 md:mt-0">
+              <div className="flex space-x-2 mt-2">
                 <button
                   className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                   onClick={() => handleAction(product.id, 'approved')}
