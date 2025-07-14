@@ -48,6 +48,7 @@ export default function StoresPage() {
   const [selectedStores, setSelectedStores] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [showFilters, setShowFilters] = useState(false)
+  const [totalStoresCount, setTotalStoresCount] = useState<number>(0)
 
   useEffect(() => {
     fetchStores()
@@ -59,6 +60,12 @@ export default function StoresPage() {
 
   const fetchStores = async () => {
     try {
+      // First get the total count to match the home page
+      const { count: totalStoresCount } = await supabase
+        .from('stores')
+        .select('*', { count: 'exact', head: true })
+
+      // Then fetch all stores for display
       const { data, error } = await supabase
         .from('stores')
         .select('*')
@@ -66,6 +73,11 @@ export default function StoresPage() {
 
       if (error) throw error
       setStores(data || [])
+      setTotalStoresCount(totalStoresCount || 0)
+      
+      // Log the counts for debugging
+      console.log('Total stores count (from count query):', totalStoresCount)
+      console.log('Fetched stores count (from data):', data?.length || 0)
     } catch (error) {
       console.error('Error fetching stores:', error)
     } finally {
@@ -181,7 +193,7 @@ export default function StoresPage() {
               <Store className="h-8 w-8 text-blue-500" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Stores</p>
-                <p className="text-2xl font-bold text-gray-900">{stores.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{totalStoresCount}</p>
               </div>
             </div>
           </div>
@@ -231,7 +243,7 @@ export default function StoresPage() {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
               <div className="flex items-center space-x-4">
                 <h3 className="text-lg font-semibold text-gray-900">Stores</h3>
-                <span className="text-sm text-gray-500">({filteredStores.length} of {stores.length})</span>
+                <span className="text-sm text-gray-500">({filteredStores.length} of {totalStoresCount})</span>
               </div>
               <div className="flex items-center space-x-4">
                 <button
