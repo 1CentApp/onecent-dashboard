@@ -5,12 +5,14 @@ import { supabase } from '../../lib/supabase'
 import { Package, Store, Tag, TrendingUp } from 'lucide-react'
 
 interface Product {
-  id: string
-  title: string
-  price: number
-  store: string
-  image: string
-  created_at: string
+  id: string;
+  product_name: string;
+  brand?: string;
+  image_url?: string;
+  category?: string;
+  barcode?: string;
+  created_at: string;
+  [key: string]: any;
 }
 
 export default function ProductsPage() {
@@ -67,7 +69,7 @@ export default function ProductsPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
               <Package className="h-8 w-8 text-blue-500" />
@@ -81,20 +83,9 @@ export default function ProductsPage() {
             <div className="flex items-center">
               <Store className="h-8 w-8 text-green-500" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Unique Stores</p>
+                <p className="text-sm font-medium text-gray-600">Unique Brands</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {new Set(products.map(p => p.store)).size}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <Tag className="h-8 w-8 text-purple-500" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avg Price</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  ${(products.reduce((sum, p) => sum + p.price, 0) / products.length || 0).toFixed(2)}
+                  {new Set(products.map(p => p.brand)).size}
                 </p>
               </div>
             </div>
@@ -127,10 +118,10 @@ export default function ProductsPage() {
               {products.map((product) => (
                 <div key={product.id} className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center space-x-4">
-                    {product.image ? (
+                    {product.image_url ? (
                       <img 
-                        src={product.image} 
-                        alt={product.title}
+                        src={product.image_url} 
+                        alt={product.product_name}
                         className="h-16 w-16 rounded-lg object-cover"
                       />
                     ) : (
@@ -140,12 +131,11 @@ export default function ProductsPage() {
                     )}
                     <div className="flex-1">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {product.title}
+                        {product.product_name}
                       </h4>
-                      <p className="text-sm text-gray-500">{product.store}</p>
-                      <p className="text-sm font-semibold text-green-600">
-                        ${product.price.toFixed(2)}
-                      </p>
+                      <p className="text-sm text-gray-500">{product.brand || '—'}</p>
+                      <p className="text-xs text-gray-400">Barcode: {product.barcode || '—'}</p>
+                      <p className="text-xs text-gray-400">Category: {product.category || '—'}</p>
                     </div>
                   </div>
                   <div className="mt-4 flex justify-between items-center">
