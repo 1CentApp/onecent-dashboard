@@ -18,6 +18,7 @@ interface ProductImage {
 const PendingProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [imagesByProduct, setImagesByProduct] = useState<Record<string, ProductImage[]>>({});
+  const [userInfoByProduct, setUserInfoByProduct] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,6 +41,19 @@ const PendingProducts: React.FC = () => {
     setProducts(productsData || []);
     // Fetch all images for these products
     const productIds = (productsData || []).map((p: Product) => p.id);
+    // Fetch user info for each product
+    const userIds = Array.from(new Set((productsData || []).map((p: Product) => p.submitted_by).filter(Boolean)));
+    let userInfoMap: Record<string, any> = {};
+    if (userIds.length > 0) {
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, email, display_name, location')
+        .in('id', userIds);
+      (usersData || []).forEach((u: any) => {
+        userInfoMap[u.id] = u;
+      });
+    }
+    setUserInfoByProduct(userInfoMap);
     if (productIds.length > 0) {
       const { data: imagesData } = await supabase
         .from('product_images')
@@ -90,6 +104,19 @@ const PendingProducts: React.FC = () => {
                   ))}
                 </div>
               )}
+              {/* Submitter Info */}
+              <div className="mb-2 p-2 bg-gray-50 rounded border border-gray-200">
+                <div className="font-semibold text-gray-700 mb-1">Submitted By:</div>
+                {userInfoByProduct[product.submitted_by] ? (
+                  <>
+                    <div><span className="font-semibold">Name:</span> {userInfoByProduct[product.submitted_by].display_name || 'N/A'}</div>
+                    <div><span className="font-semibold">Email:</span> {userInfoByProduct[product.submitted_by].email || 'N/A'}</div>
+                    <div><span className="font-semibold">Location:</span> {userInfoByProduct[product.submitted_by].location || 'N/A'}</div>
+                  </>
+                ) : (
+                  <div className="text-gray-500">Unknown submitter</div>
+                )}
+              </div>
               {/* All product fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 mb-2">
                 {Object.entries(product).map(([key, value]) => (
