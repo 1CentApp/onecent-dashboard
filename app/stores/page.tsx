@@ -31,11 +31,13 @@ interface Store {
   image_url?: string;
   latitude?: number;
   longitude?: number;
+  city?: string;
+  province?: string;
   created_at: string;
   [key: string]: any;
 }
 
-type SortField = 'name' | 'created_at' | 'address';
+type SortField = 'name' | 'created_at' | 'address' | 'city' | 'province';
 type SortOrder = 'asc' | 'desc';
 
 export default function StoresPage() {
@@ -49,6 +51,13 @@ export default function StoresPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [showFilters, setShowFilters] = useState(false)
   const [totalStoresCount, setTotalStoresCount] = useState<number>(0)
+  
+  // New filter states
+  const [cityFilter, setCityFilter] = useState('')
+  const [provinceFilter, setProvinceFilter] = useState('')
+  const [storeNameFilter, setStoreNameFilter] = useState('')
+  const [availableCities, setAvailableCities] = useState<string[]>([])
+  const [availableProvinces, setAvailableProvinces] = useState<string[]>([])
 
   useEffect(() => {
     fetchStores()
@@ -56,7 +65,7 @@ export default function StoresPage() {
 
   useEffect(() => {
     filterAndSortStores()
-  }, [stores, searchTerm, sortField, sortOrder])
+  }, [stores, searchTerm, sortField, sortOrder, cityFilter, provinceFilter, storeNameFilter])
 
   const fetchStores = async () => {
     try {
@@ -74,6 +83,13 @@ export default function StoresPage() {
       if (error) throw error
       setStores(data || [])
       setTotalStoresCount(totalStoresCount || 0)
+      
+      // Extract unique cities and provinces for filter dropdowns
+      const cities = Array.from(new Set(data?.filter(store => store.city).map(store => store.city) || [])).sort()
+      const provinces = Array.from(new Set(data?.filter(store => store.province).map(store => store.province) || [])).sort()
+      
+      setAvailableCities(cities)
+      setAvailableProvinces(provinces)
       
       // Log the counts for debugging
       console.log('Total stores count (from count query):', totalStoresCount)
@@ -94,6 +110,27 @@ export default function StoresPage() {
         store.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         store.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         store.phone?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    // Store name filter
+    if (storeNameFilter) {
+      filtered = filtered.filter(store =>
+        store.name?.toLowerCase().includes(storeNameFilter.toLowerCase())
+      )
+    }
+
+    // City filter
+    if (cityFilter) {
+      filtered = filtered.filter(store =>
+        store.city?.toLowerCase() === cityFilter.toLowerCase()
+      )
+    }
+
+    // Province filter
+    if (provinceFilter) {
+      filtered = filtered.filter(store =>
+        store.province?.toLowerCase() === provinceFilter.toLowerCase()
       )
     }
 
@@ -154,6 +191,15 @@ export default function StoresPage() {
     } else {
       setSelectedStores(filteredStores.map(s => s.id))
     }
+  }
+
+  const clearAllFilters = () => {
+    setSearchTerm('')
+    setStoreNameFilter('')
+    setCityFilter('')
+    setProvinceFilter('')
+    setSortField('created_at')
+    setSortOrder('desc')
   }
 
   if (loading) {
@@ -297,7 +343,49 @@ export default function StoresPage() {
           {/* Advanced Filters */}
           {showFilters && (
             <div className="p-6 border-b border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Store Name Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Store Name</label>
+                  <input
+                    type="text"
+                    placeholder="Filter by store name..."
+                    value={storeNameFilter}
+                    onChange={(e) => setStoreNameFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* City Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <select
+                    value={cityFilter}
+                    onChange={(e) => setCityFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">All Cities</option>
+                    {availableCities.map((city) => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Province Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Province</label>
+                  <select
+                    value={provinceFilter}
+                    onChange={(e) => setProvinceFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">All Provinces</option>
+                    {availableProvinces.map((province) => (
+                      <option key={province} value={province}>{province}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Sort */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
@@ -310,6 +398,8 @@ export default function StoresPage() {
                       <option value="created_at">Date Created</option>
                       <option value="name">Store Name</option>
                       <option value="address">Address</option>
+                      <option value="city">City</option>
+                      <option value="province">Province</option>
                     </select>
                     <button
                       onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
@@ -331,6 +421,12 @@ export default function StoresPage() {
                   {selectedStores.length} store(s) selected
                 </span>
                 <div className="flex space-x-2">
+                  <button
+                    onClick={clearAllFilters}
+                    className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                  >
+                    Clear All Filters
+                  </button>
                   <button
                     onClick={() => handleBulkAction('delete')}
                     className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
@@ -406,6 +502,18 @@ export default function StoresPage() {
                         </div>
                         
                         <div className="space-y-1 mb-3">
+                          {store.city && (
+                            <div className="flex items-center space-x-1">
+                              <MapPin className="w-3 h-3 text-gray-400" />
+                              <p className="text-xs text-gray-500">{store.city}</p>
+                            </div>
+                          )}
+                          {store.province && (
+                            <div className="flex items-center space-x-1">
+                              <MapPin className="w-3 h-3 text-gray-400" />
+                              <p className="text-xs text-gray-500">{store.province}</p>
+                            </div>
+                          )}
                           {store.phone && (
                             <div className="flex items-center space-x-1">
                               <Phone className="w-3 h-3 text-gray-400" />
@@ -462,6 +570,8 @@ export default function StoresPage() {
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Province</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
@@ -498,6 +608,8 @@ export default function StoresPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{store.address || '—'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{store.city || '—'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{store.province || '—'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{store.phone || '—'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {store.latitude && store.longitude ? 'Available' : '—'}
