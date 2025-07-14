@@ -87,12 +87,12 @@ export default function StoresPage() {
 
     // Sorting
     filtered.sort((a, b) => {
-      let aValue = a[sortField]
-      let bValue = b[sortField]
+      let aValue: any = a[sortField]
+      let bValue: any = b[sortField]
 
       if (sortField === 'created_at') {
-        aValue = new Date(aValue as string).getTime()
-        bValue = new Date(bValue as string).getTime()
+        aValue = new Date(aValue).getTime()
+        bValue = new Date(bValue).getTime()
       } else if (typeof aValue === 'string' && typeof bValue === 'string') {
         aValue = aValue.toLowerCase()
         bValue = bValue.toLowerCase()
