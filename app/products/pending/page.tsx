@@ -50,27 +50,57 @@ const PendingProducts: React.FC = () => {
         return;
       }
 
+      console.log('Products data:', productsData);
       setProducts(productsData || []);
 
       // Fetch user info for each product
       const userIds = Array.from(new Set((productsData || []).map((p: Product) => p.submitted_by).filter(Boolean)));
+      console.log('User IDs to fetch:', userIds);
+      
       let userInfoMap: Record<string, User> = {};
       
       if (userIds.length > 0) {
+        // Try to fetch from auth.users first (Supabase auth table)
+        const { data: authUsersData, error: authUsersError } = await supabase
+          .from('auth.users')
+          .select('id, email, raw_user_meta_data')
+          .in('id', userIds);
+        
+        console.log('Auth users data:', authUsersData);
+        console.log('Auth users error:', authUsersError);
+        
+        if (!authUsersError && authUsersData) {
+          authUsersData.forEach((u: any) => {
+            userInfoMap[u.id] = {
+              id: u.id,
+              email: u.email,
+              display_name: u.raw_user_meta_data?.display_name || u.raw_user_meta_data?.name || 'N/A',
+              location: u.raw_user_meta_data?.location || 'N/A'
+            };
+          });
+        }
+        
+        // Also try to fetch from the users table (if it exists)
         const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select('id, email, display_name, location')
           .in('id', userIds);
         
-        if (usersError) {
-          console.error('Users error:', usersError);
-        } else {
-          (usersData || []).forEach((u: User) => {
-            userInfoMap[u.id] = u;
+        console.log('Users table data:', usersData);
+        console.log('Users table error:', usersError);
+        
+        if (!usersError && usersData) {
+          usersData.forEach((u: User) => {
+            // Override with users table data if available
+            userInfoMap[u.id] = {
+              ...userInfoMap[u.id],
+              ...u
+            };
           });
         }
       }
       
+      console.log('Final user info map:', userInfoMap);
       setUserInfoByProduct(userInfoMap);
 
       // Fetch all images for these products
@@ -193,7 +223,11 @@ const PendingProducts: React.FC = () => {
                       <div><span className="font-semibold">Location:</span> {user.location || 'N/A'}</div>
                     </div>
                   ) : (
-                    <div className="text-gray-500">Unknown submitter (User ID: {product.submitted_by})</div>
+                    <div className="text-gray-500">
+                      <div>Unknown submitter</div>
+                      <div className="text-xs text-gray-400 mt-1">User ID: {product.submitted_by || 'No user ID'}</div>
+                      <div className="text-xs text-gray-400">This user may not exist in the database or may have been deleted.</div>
+                    </div>
                   )}
                 </div>
                 
