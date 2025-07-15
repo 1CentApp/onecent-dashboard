@@ -15,10 +15,17 @@ interface ProductImage {
   status: string;
 }
 
+interface User {
+  id: string;
+  email: string;
+  display_name?: string;
+  location?: string;
+}
+
 const PendingProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [imagesByProduct, setImagesByProduct] = useState<Record<string, ProductImage[]>>({});
-  const [userInfoByProduct, setUserInfoByProduct] = useState<Record<string, any>>({});
+  const [userInfoByProduct, setUserInfoByProduct] = useState<Record<string, User>>({});
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -29,47 +36,71 @@ const PendingProducts: React.FC = () => {
 
   const fetchPendingProducts = async () => {
     setLoading(true);
-    // Fetch all pending products
-    const { data: productsData, error: productsError } = await supabase
-      .from('products')
-      .select('*')
-      .eq('status', 'pending');
-    if (productsError) {
-      toast.error('Failed to fetch products');
-      setLoading(false);
-      return;
-    }
-    setProducts(productsData || []);
-    // Fetch all images for these products
-    const productIds = (productsData || []).map((p: Product) => p.id);
-    // Fetch user info for each product
-    const userIds = Array.from(new Set((productsData || []).map((p: Product) => p.submitted_by).filter(Boolean)));
-    let userInfoMap: Record<string, any> = {};
-    if (userIds.length > 0) {
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('id, email, display_name, location')
-        .in('id', userIds);
-      (usersData || []).forEach((u: any) => {
-        userInfoMap[u.id] = u;
-      });
-    }
-    setUserInfoByProduct(userInfoMap);
-    if (productIds.length > 0) {
-      const { data: imagesData } = await supabase
-        .from('product_images')
+    try {
+      // Fetch all pending products
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
         .select('*')
-        .in('product_id', productIds);
-      // Group images by product_id
-      const imagesMap: Record<string, ProductImage[]> = {};
-      (imagesData || []).forEach((img: ProductImage) => {
-        if (!imagesMap[img.product_id]) imagesMap[img.product_id] = [];
-        imagesMap[img.product_id].push(img);
-      });
-      setImagesByProduct(imagesMap);
-    } else {
-      setImagesByProduct({});
+        .eq('status', 'pending');
+      
+      if (productsError) {
+        console.error('Products error:', productsError);
+        toast.error('Failed to fetch products');
+        setLoading(false);
+        return;
+      }
+
+      setProducts(productsData || []);
+
+      // Fetch user info for each product
+      const userIds = Array.from(new Set((productsData || []).map((p: Product) => p.submitted_by).filter(Boolean)));
+      let userInfoMap: Record<string, User> = {};
+      
+      if (userIds.length > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, email, display_name, location')
+          .in('id', userIds);
+        
+        if (usersError) {
+          console.error('Users error:', usersError);
+        } else {
+          (usersData || []).forEach((u: User) => {
+            userInfoMap[u.id] = u;
+          });
+        }
+      }
+      
+      setUserInfoByProduct(userInfoMap);
+
+      // Fetch all images for these products
+      const productIds = (productsData || []).map((p: Product) => p.id);
+      
+      if (productIds.length > 0) {
+        const { data: imagesData, error: imagesError } = await supabase
+          .from('product_images')
+          .select('*')
+          .in('product_id', productIds);
+        
+        if (imagesError) {
+          console.error('Images error:', imagesError);
+        } else {
+          // Group images by product_id
+          const imagesMap: Record<string, ProductImage[]> = {};
+          (imagesData || []).forEach((img: ProductImage) => {
+            if (!imagesMap[img.product_id]) imagesMap[img.product_id] = [];
+            imagesMap[img.product_id].push(img);
+          });
+          setImagesByProduct(imagesMap);
+        }
+      } else {
+        setImagesByProduct({});
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
+      toast.error('Failed to fetch data');
     }
+    
     setLoading(false);
   };
 
@@ -86,6 +117,27 @@ const PendingProducts: React.FC = () => {
     }
   };
 
+  const getProductImages = (product: Product) => {
+    const images: string[] = [];
+    
+    // Add images from product_images table
+    if (imagesByProduct[product.id]) {
+      images.push(...imagesByProduct[product.id].map(img => img.image_url));
+    }
+    
+    // Add image_url if it exists
+    if (product.image_url) {
+      images.push(product.image_url);
+    }
+    
+    // Add image_urls if it exists
+    if (Array.isArray(product.image_urls)) {
+      images.push(...product.image_urls);
+    }
+    
+    return images;
+  };
+
   if (loading) return <div className="p-8">Loading...</div>;
 
   return (
@@ -95,80 +147,89 @@ const PendingProducts: React.FC = () => {
         <div>No pending products.</div>
       ) : (
         <div className="space-y-6">
-          {products.map((product) => (
-            <div key={product.id} className="bg-white rounded-lg shadow-lg p-6 flex flex-col space-y-4">
-              {/* Product Images Section */}
-              {imagesByProduct[product.id] && imagesByProduct[product.id].length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Product Images ({imagesByProduct[product.id].length})</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {imagesByProduct[product.id].map((img) => (
-                      <div key={img.id} className="relative group">
-                        <img 
-                          src={img.image_url} 
-                          alt="Product" 
-                          className="w-full h-32 object-cover rounded-lg border-2 border-gray-200 hover:border-blue-400 cursor-pointer transition-all duration-200 hover:scale-105"
-                          onClick={() => setSelectedImage(img.image_url)}
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                            </svg>
+          {products.map((product) => {
+            const productImages = getProductImages(product);
+            const user = userInfoByProduct[product.submitted_by];
+            
+            return (
+              <div key={product.id} className="bg-white rounded-lg shadow-lg p-6 flex flex-col space-y-4">
+                {/* Product Images Section */}
+                {productImages.length > 0 && (
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-3">Product Images</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {productImages.map((imageUrl, idx) => (
+                        <div key={idx} className="relative group">
+                          <img 
+                            src={imageUrl} 
+                            alt="Product" 
+                            className="w-full h-32 object-cover rounded-lg border-2 border-gray-200 hover:border-blue-400 cursor-pointer transition-all duration-200 hover:scale-105"
+                            onClick={() => setSelectedImage(imageUrl)}
+                            onError={(e) => {
+                              console.error('Image failed to load:', imageUrl);
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                              </svg>
+                            </div>
                           </div>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Submitter Info */}
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="font-semibold text-gray-700 mb-2">Submitted By:</div>
+                  {user ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                      <div><span className="font-semibold">Name:</span> {user.display_name || 'N/A'}</div>
+                      <div><span className="font-semibold">Email:</span> {user.email || 'N/A'}</div>
+                      <div><span className="font-semibold">Location:</span> {user.location || 'N/A'}</div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500">Unknown submitter (User ID: {product.submitted_by})</div>
+                  )}
+                </div>
+                
+                {/* Product Details */}
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Product Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                    {Object.entries(product).filter(([key]) => !['id', 'submitted_by', 'status'].includes(key)).map(([key, value]) => (
+                      <div key={key} className="text-sm">
+                        <span className="font-semibold capitalize text-gray-700">{key.replace(/_/g, ' ')}:</span> 
+                        <span className="ml-2 text-gray-600">
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value || 'N/A')}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-              
-              {/* Submitter Info */}
-              <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="font-semibold text-gray-700 mb-2">Submitted By:</div>
-                {userInfoByProduct[product.submitted_by] ? (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                    <div><span className="font-semibold">Name:</span> {userInfoByProduct[product.submitted_by].display_name || 'N/A'}</div>
-                    <div><span className="font-semibold">Email:</span> {userInfoByProduct[product.submitted_by].email || 'N/A'}</div>
-                    <div><span className="font-semibold">Location:</span> {userInfoByProduct[product.submitted_by].location || 'N/A'}</div>
-                  </div>
-                ) : (
-                  <div className="text-gray-500">Unknown submitter</div>
-                )}
-              </div>
-              
-              {/* Product Details */}
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Product Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-                  {Object.entries(product).filter(([key]) => !['id', 'submitted_by', 'status'].includes(key)).map(([key, value]) => (
-                    <div key={key} className="text-sm">
-                      <span className="font-semibold capitalize text-gray-700">{key.replace(/_/g, ' ')}:</span> 
-                      <span className="ml-2 text-gray-600">
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value || 'N/A')}
-                      </span>
-                    </div>
-                  ))}
+                
+                {/* Action Buttons */}
+                <div className="flex space-x-3 pt-4 border-t border-gray-200">
+                  <button
+                    className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors duration-200 font-medium"
+                    onClick={() => handleAction(product.id, 'approved')}
+                  >
+                    Approve Product
+                  </button>
+                  <button
+                    className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200 font-medium"
+                    onClick={() => handleAction(product.id, 'rejected')}
+                  >
+                    Reject Product
+                  </button>
                 </div>
               </div>
-              
-              {/* Action Buttons */}
-              <div className="flex space-x-3 pt-4 border-t border-gray-200">
-                <button
-                  className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors duration-200 font-medium"
-                  onClick={() => handleAction(product.id, 'approved')}
-                >
-                  Approve Product
-                </button>
-                <button
-                  className="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200 font-medium"
-                  onClick={() => handleAction(product.id, 'rejected')}
-                >
-                  Reject Product
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
