@@ -216,17 +216,24 @@ const PendingProducts: React.FC = () => {
                 {/* Submitter Info */}
                 <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="font-semibold text-gray-700 mb-2">Submitted By:</div>
-                  {user ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                      <div><span className="font-semibold">Name:</span> {user.display_name || 'N/A'}</div>
-                      <div><span className="font-semibold">Email:</span> {user.email || 'N/A'}</div>
-                      <div><span className="font-semibold">Location:</span> {user.location || 'N/A'}</div>
-                    </div>
+                  {product.submitted_by ? (
+                    user ? (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                        <div><span className="font-semibold">Name:</span> {user.display_name || 'N/A'}</div>
+                        <div><span className="font-semibold">Email:</span> {user.email || 'N/A'}</div>
+                        <div><span className="font-semibold">Location:</span> {user.location || 'N/A'}</div>
+                      </div>
+                    ) : (
+                      <div className="text-gray-500">
+                        <div>User not found in database</div>
+                        <div className="text-xs text-gray-400 mt-1">User ID: {product.submitted_by}</div>
+                        <div className="text-xs text-gray-400">This user may have been deleted or the ID is incorrect.</div>
+                      </div>
+                    )
                   ) : (
                     <div className="text-gray-500">
-                      <div>Unknown submitter</div>
-                      <div className="text-xs text-gray-400 mt-1">User ID: {product.submitted_by || 'No user ID'}</div>
-                      <div className="text-xs text-gray-400">This user may not exist in the database or may have been deleted.</div>
+                      <div>No submitter information</div>
+                      <div className="text-xs text-gray-400 mt-1">This product was submitted before the submitter tracking was implemented.</div>
                     </div>
                   )}
                 </div>
