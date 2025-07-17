@@ -10,7 +10,7 @@ interface ProductImage {
   image_url: string;
   status: string;
   submitted_by: string;
-  created_at: string;
+  created_at?: string;
 }
 
 interface Product {
@@ -57,8 +57,9 @@ const PendingImages: React.FC = () => {
       const { data, error } = await supabase
         .from('product_images')
         .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .eq('status', 'pending');
+        // Temporarily remove ordering by created_at until column exists
+        // .order('created_at', { ascending: false });
       
       if (error) {
         console.error('Supabase error:', error);
@@ -158,9 +159,14 @@ const PendingImages: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString();
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Date not available';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch (err) {
+      return 'Invalid date';
+    }
   };
 
   if (loading) return <div className="p-8">Loading...</div>;
@@ -239,7 +245,7 @@ const PendingImages: React.FC = () => {
                         <p className="text-sm text-gray-500">User information not available</p>
                       )}
                       <p className="text-xs text-gray-400 mt-1">
-                        Submitted: {formatDate(img.created_at)}
+                        Submitted: {formatDate(img.created_at || null)}
                       </p>
                       <p className="text-xs text-blue-500 mt-1">
                         📸 Click image to zoom
