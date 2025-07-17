@@ -42,86 +42,104 @@ const PendingImages: React.FC = () => {
 
   const fetchPendingImages = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('product_images')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-    if (error) {
-      toast.error('Failed to fetch images');
-      setLoading(false);
-      return;
-    }
-    
-    console.log('Fetched images:', data);
-    setImages(data || []);
-    
-    // Fetch product info for all product_ids
-    const productIds = (data || []).map((img: ProductImage) => img.product_id);
-    console.log('Product IDs to fetch:', productIds);
-    
-    if (productIds.length > 0) {
-      const { data: productData, error: productError } = await supabase
-        .from('products')
-        .select('id, product_name, brand, category')
-        .in('id', productIds);
+    try {
+      console.log('Starting to fetch pending images...');
       
-      console.log('Product data:', productData);
-      console.log('Product error:', productError);
+      // First, let's test if we can access the table at all
+      const { data: testData, error: testError } = await supabase
+        .from('product_images')
+        .select('count')
+        .limit(1);
       
-      const productMap: Record<string, Product> = {};
-      (productData || []).forEach((p: Product) => {
-        productMap[p.id] = p;
-      });
+      console.log('Test query result:', testData);
+      console.log('Test query error:', testError);
       
-      // If some products are missing, try to fetch them individually
-      const foundProductIds = Object.keys(productMap);
-      const missingProductIds = productIds.filter(id => !foundProductIds.includes(id));
-      if (missingProductIds.length > 0) {
-        console.log('Missing products for IDs:', missingProductIds);
-        
-        // Try to fetch missing products one by one
-        for (const missingId of missingProductIds) {
-          const { data: singleProduct } = await supabase
-            .from('products')
-            .select('id, product_name, brand, category')
-            .eq('id', missingId)
-            .single();
-          
-          if (singleProduct) {
-            productMap[singleProduct.id] = singleProduct;
-            console.log('Found missing product:', singleProduct);
-          }
-        }
+      const { data, error } = await supabase
+        .from('product_images')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        toast.error(`Failed to fetch images: ${error.message}`);
+        setLoading(false);
+        return;
       }
       
-      setProducts(productMap);
-    }
+      console.log('Fetched images:', data);
+      setImages(data || []);
+      
+      // Fetch product info for all product_ids
+      const productIds = (data || []).map((img: ProductImage) => img.product_id);
+      console.log('Product IDs to fetch:', productIds);
+      
+      if (productIds.length > 0) {
+        const { data: productData, error: productError } = await supabase
+          .from('products')
+          .select('id, product_name, brand, category')
+          .in('id', productIds);
+        
+        console.log('Product data:', productData);
+        console.log('Product error:', productError);
+        
+        const productMap: Record<string, Product> = {};
+        (productData || []).forEach((p: Product) => {
+          productMap[p.id] = p;
+        });
+        
+        // If some products are missing, try to fetch them individually
+        const foundProductIds = Object.keys(productMap);
+        const missingProductIds = productIds.filter(id => !foundProductIds.includes(id));
+        if (missingProductIds.length > 0) {
+          console.log('Missing products for IDs:', missingProductIds);
+          
+          // Try to fetch missing products one by one
+          for (const missingId of missingProductIds) {
+            const { data: singleProduct } = await supabase
+              .from('products')
+              .select('id, product_name, brand, category')
+              .eq('id', missingId)
+              .single();
+            
+            if (singleProduct) {
+              productMap[singleProduct.id] = singleProduct;
+              console.log('Found missing product:', singleProduct);
+            }
+          }
+        }
+        
+        setProducts(productMap);
+      }
 
-    // Fetch user info for all submitted_by
-    const userIds = Array.from(new Set((data || []).map((img: ProductImage) => img.submitted_by)));
-    console.log('User IDs to fetch:', userIds);
-    
-    if (userIds.length > 0) {
-      const { data: userData, error: userError } = await supabase
-        .from('auth.users')
-        .select('id, email, raw_user_meta_data')
-        .in('id', userIds);
+      // Fetch user info for all submitted_by
+      const userIds = Array.from(new Set((data || []).map((img: ProductImage) => img.submitted_by)));
+      console.log('User IDs to fetch:', userIds);
       
-      console.log('User data:', userData);
-      console.log('User error:', userError);
-      
-      const userMap: Record<string, User> = {};
-      (userData || []).forEach((u: any) => {
-        userMap[u.id] = {
-          id: u.id,
-          email: u.email,
-          display_name: u.raw_user_meta_data?.display_name || u.raw_user_meta_data?.name || 'Unknown User',
-          location: u.raw_user_meta_data?.location,
-          city: u.raw_user_meta_data?.city
-        };
-      });
-      setUsers(userMap);
+      if (userIds.length > 0) {
+        const { data: userData, error: userError } = await supabase
+          .from('auth.users')
+          .select('id, email, raw_user_meta_data')
+          .in('id', userIds);
+        
+        console.log('User data:', userData);
+        console.log('User error:', userError);
+        
+        const userMap: Record<string, User> = {};
+        (userData || []).forEach((u: any) => {
+          userMap[u.id] = {
+            id: u.id,
+            email: u.email,
+            display_name: u.raw_user_meta_data?.display_name || u.raw_user_meta_data?.name || 'Unknown User',
+            location: u.raw_user_meta_data?.location,
+            city: u.raw_user_meta_data?.city
+          };
+        });
+        setUsers(userMap);
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('An unexpected error occurred while fetching images');
     }
     
     setLoading(false);
