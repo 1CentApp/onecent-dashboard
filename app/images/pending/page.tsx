@@ -118,25 +118,67 @@ const PendingImages: React.FC = () => {
       console.log('User IDs to fetch:', userIds);
       
       if (userIds.length > 0) {
-        const { data: userData, error: userError } = await supabase
-          .from('auth.users')
-          .select('id, email, raw_user_meta_data')
-          .in('id', userIds);
-        
-        console.log('User data:', userData);
-        console.log('User error:', userError);
-        
-        const userMap: Record<string, User> = {};
-        (userData || []).forEach((u: any) => {
-          userMap[u.id] = {
-            id: u.id,
-            email: u.email,
-            display_name: u.raw_user_meta_data?.display_name || u.raw_user_meta_data?.name || 'Unknown User',
-            location: u.raw_user_meta_data?.location,
-            city: u.raw_user_meta_data?.city
-          };
-        });
-        setUsers(userMap);
+        try {
+          // Try to fetch from profiles table first
+          const { data: userData, error: userError } = await supabase
+            .from('profiles')
+            .select('id, email, display_name, location, city')
+            .in('id', userIds);
+          
+          console.log('User data from profiles:', userData);
+          console.log('User error from profiles:', userError);
+          
+          if (userError || !userData || userData.length === 0) {
+            // Fallback to auth.users table
+            console.log('Falling back to auth.users table');
+            const { data: authUserData, error: authUserError } = await supabase
+              .from('auth.users')
+              .select('id, email, raw_user_meta_data')
+              .in('id', userIds);
+            
+            console.log('Auth user data:', authUserData);
+            console.log('Auth user error:', authUserError);
+            
+            const userMap: Record<string, User> = {};
+            (authUserData || []).forEach((u: any) => {
+              userMap[u.id] = {
+                id: u.id,
+                email: u.email,
+                display_name: u.raw_user_meta_data?.display_name || u.raw_user_meta_data?.name || 'Unknown User',
+                location: u.raw_user_meta_data?.location,
+                city: u.raw_user_meta_data?.city
+              };
+            });
+            setUsers(userMap);
+          } else {
+            // Use profiles table data
+            const userMap: Record<string, User> = {};
+            userData.forEach((u: any) => {
+              userMap[u.id] = {
+                id: u.id,
+                email: u.email,
+                display_name: u.display_name || 'Unknown User',
+                location: u.location,
+                city: u.city
+              };
+            });
+            setUsers(userMap);
+          }
+        } catch (userFetchError) {
+          console.error('Error fetching user data:', userFetchError);
+          // Set default user info if we can't fetch
+          const userMap: Record<string, User> = {};
+          userIds.forEach(id => {
+            userMap[id] = {
+              id: id,
+              email: 'User information not available',
+              display_name: 'Unknown User',
+              location: undefined,
+              city: undefined
+            };
+          });
+          setUsers(userMap);
+        }
       }
     } catch (err) {
       console.error('Unexpected error:', err);
